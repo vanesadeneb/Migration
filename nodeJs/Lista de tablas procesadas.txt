@@ -1,0 +1,6 @@
+Lista de tablas procesadas:
+Catalogos:
+*c_sexo
+*c_dedo
+*c_estatus_imagen
+*

@@ -1,0 +1,19 @@
+{
+  "name": "licencias",
+  "version": "1.0.0",
+  "description": "mysql to sql server",
+  "type": "module",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mssql": "^10.0.2",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.9.7",
+    "tedious": "^18.2.0"
+  }
+}
