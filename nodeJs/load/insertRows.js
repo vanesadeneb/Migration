@@ -1,77 +1,60 @@
-import { compareFields } from '../transformation/compareFields.js';
-import { getPrimaryKey } from '../extraction/getSqlPk.js';
 import sql from 'mssql';
 
 export async function insertRow(transaction, tableName, row) {
+    console.log("row: ", row);
     const keys = Object.keys(row);
     const values = keys.map(key => row[key]);
 
-    console.log("KEYS", keys);
-    console.log("VALUES", values);
-
-    const fields = await compareFields(tableName);
-    const pk = await getPrimaryKey(tableName);
-    const filteredFields = fields
-    // .filter(fieldName =>  fieldName.COLUMN_NAME !== pk[0])
-    .map(fieldName => fieldName.COLUMN_NAME);
-
-    console.log("campos filtrados", filteredFields);
-
     // Create a new request within the transaction context
-    let request = new sql.Request(transaction);
+    let request_table = new sql.Request(transaction);
+    let request_procesados = new sql.Request(transaction);
 
     // Map the row keys to their SQL data types and add inputs to the request
     keys.forEach((key, index) => {
         const value = values[index] !== undefined ? values[index] : null;
-        // const type = typeof value === 'number' ? sql.Int : sql.VarChar;
-        // request = request.input(key.toUpperCase(), type, values);
         let type;
-    
-            // Infer SQL type based on JavaScript type
-            if (typeof value === 'number') {
-                type = Number.isInteger(value) ? sql.Int : sql.Float;
-            } else if (typeof value === 'boolean') {
-                type = sql.Bit;
-            } else if (value instanceof Date) {
-                type = sql.DateTime;
-            } else {
-                type = sql.VarChar;
-            }
 
-            request = request.input(key.toUpperCase(), type, value);
+        // Infer SQL type based on JavaScript type
+        if (typeof value === 'number') {
+            type = Number.isInteger(value) ? sql.Int : sql.Float;
+        } else if (typeof value === 'boolean') {
+            type = sql.Bit;
+        } else if (value instanceof Date) {
+            type = sql.DateTime;
+        } else {
+            type = sql.VarChar;
+        }
+
+        request_table = request_table.input(key, type, value);
     });
 
+    const columns = keys.join(', ');
+    const parameters = keys.map(param => `@${param}`).join(', ');
 
-    const columns = filteredFields.join(', ');
-    const parameters = filteredFields.map(param => `@${param.toUpperCase()}`).join(', ');
-    
-    console.log("COLUMNS", columns);
-    console.log("PARAMETERS", parameters);
-    
-    const query = `INSERT INTO ${tableName} (${columns}) VALUES ( ${parameters})`;
-    // const query = `INSERT INTO ${tableName} (id_estatus_tramite, dsc_estatus_tramite) VALUES (@ID_ESTATUS_TRAMITE, @DSC_ESTATUS_TRAMITE)`;
+    // console.log("COLUMNS: ", columns);
+    // console.log("PARAMETERS: ", parameters);
 
-    console.log("Filtered Fields: ", filteredFields);
-    console.log("Query: ", query);
+    const query = `INSERT INTO ${tableName} (${columns}) VALUES (${parameters})`;
+    const processed_data_success = `INSERT INTO procesados (id, detalle, estatus) VALUES (${values[0]}, '${tableName}', 1)`;
+
+    // console.log("Query: ", query);
+    // console.log("processed_data_success: ", processed_data_success);
 
     try {
-        // if (enableIdentityInsert) {
-        //     console.log(`Enabling IDENTITY_INSERT for ${tableName}`);
-        //     // Enable IDENTITY_INSERT
-        //     await transaction.request().query(`SET IDENTITY_INSERT ${tableName} ON`);
-        // }
-
         // Execute the insert query
-        await request.query(query);
-        console.log('Row inserted successfully');
-
-        // if (enableIdentityInsert) {
-        //     console.log(`Disabling IDENTITY_INSERT for ${tableName}`);
-        //     // Disable IDENTITY_INSERT
-        //     await transaction.request().query(`SET IDENTITY_INSERT ${tableName} OFF`);
-        // }
+        await request_table.query(query);
+        console.log('Row inserted successfully: ' + values[0]);
+        
+        // Insert into procesados table
+        await request_procesados.query(processed_data_success);
+        console.log('Processed data inserted successfully');
     } catch (error) {
+        let request_procesados_error = new sql.Request(transaction);
+        const processed_data_fail = `INSERT INTO procesados (id, detalle, estatus) VALUES (${values[0]}, '${tableName}', 0)`;
+
+        await request_procesados_error.query(processed_data_fail);
         console.error('Error inserting row:', error);
+        
         throw error;
     }
 }
